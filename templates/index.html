@@ -1,0 +1,322 @@
+<!-- <!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Ask a Question</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
+    <style>
+        #chatbox {
+            border: 1px solid #e0e0e0;
+            height: 200px;
+            padding: 10px;
+            overflow-y: auto;
+        }
+        #button-container button {
+            display: inline-block;
+            margin-right: 10px; 
+}
+#button-container {
+    display: flex;
+    align-items: center;
+    gap: 10px; /* optional spacing between the buttons */
+}
+
+    </style>
+</head>
+<body class="bg-light">
+    <div class="container">
+        <div class="row justify-content-center mt-5">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">
+                        Ask about a Flight
+                    </div>
+                    <div class="card-body">
+                        <div id="chatbox" class="mb-3">
+                        </div>
+                        <form id="question-form">
+                            <div class="form-group" id="button-container">
+                                <input type="text" class="form-control" id="question" name="question" required>
+                                <button type="button" class="btn btn-secondary" id="record">Record</button>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Ask</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
+    <script>
+$(document).ready(function() {
+
+var recognition = new webkitSpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+
+    $('#record').click(function() {
+        if ($('#record').text() === 'Record') {
+            recognition.start();
+            $('#record').text('Stop');
+        } else {
+            recognition.stop();
+            $('#record').text('Record');
+        }
+    });
+
+    recognition.onresult = function(event) {
+        var transcript = '';
+        for (var i = event.resultIndex; i < event.results.length; i++) {
+            transcript += event.results[i][0].transcript;
+        }
+        $('#question').val(transcript);
+    };
+    
+    recognition.onerror = function(event) {
+        console.error('Speech recognition error:', event.error);
+    };
+
+    recognition.onend = function() {
+        $('#record').text('Record');
+    };
+
+var backgroundAudio = new Audio('static/office-ambience-6322.mp3');
+
+$('#question-form').submit(function(event) {
+    event.preventDefault();
+
+    const userQuery = $('#question').val();
+    $('#chatbox').append('<div>You: ' + userQuery + '</div>');
+
+    fetch('/generate_audio')
+        .then(response => response.json())
+        .then(data => {
+            var audio = new Audio('data:audio/mp3;base64,' + data.audio);
+            $('#chatbox').append('<div>Bot: Please wait while I check</div>');
+            audio.play();
+        })
+        .catch(error => console.error('There was an error!', error));
+
+    // Only one AJAX request to /ask
+    $.ajax({
+    type: 'POST',
+    url: '/ask',
+    contentType: 'application/json;charset=UTF-8',
+    data: JSON.stringify({ question: userQuery }),
+    success: function(response) {
+
+        // Play "please wait" audio
+        var waitAudio = new Audio('data:audio/mp3;base64,' + response.audio);
+        waitAudio.play();
+
+        // If there's a flight response, display it
+        if (response.flights && response.flights.length > 0) {
+            response.flights.forEach(function(flight) {
+                const departure = flight.itineraries[0].segments[0].departure.iataCode;
+                const arrival = flight.itineraries[0].segments[0].arrival.iataCode;
+                const departureTime = flight.itineraries[0].segments[0].departure.at;
+                const arrivalTime = flight.itineraries[0].segments[0].arrival.at;
+                const price = flight.price.total;
+                const flightInfo = `Flight from ${departure} to ${arrival} on ${departureTime} to ${arrivalTime} for ${price}.`;
+                $('#chatbox').append(`<div>Bot: ${flightInfo}</div>`);
+            });
+        } else if (response.audio_text) {  // New condition to check for the audio_text field
+            $('#chatbox').append(`<div>Bot: Sorry, there are no flight options available for your specified date.</div>`);  // New line to display the audio_text
+        }
+
+        // Scroll to the bottom of the chatbox
+        $('#chatbox').scrollTop($('#chatbox')[0].scrollHeight);
+
+        // Handle the end of "please wait" audio
+        waitAudio.addEventListener('ended', function() {
+            backgroundAudio.pause();
+            backgroundAudio.currentTime = 0;
+        });
+
+    },
+    error: function(error) {
+        $('#chatbox').append('<div>Bot: Sorry, Our services are down. Please try again.</div>');
+        $('#chatbox').scrollTop($('#chatbox')[0].scrollHeight);
+        
+        // Stop background audio in case of an error too
+        backgroundAudio.pause();
+        backgroundAudio.currentTime = 0;
+    }
+});
+
+// Play background audio
+backgroundAudio.play();
+});
+});
+
+    </script>
+    
+</body>
+</html> -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Speak to AI</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
+    <style>
+        body {
+            background-color: #2c3e50;
+            color: #fff;
+        }
+        .record-button {
+            height: 100px;
+            width: 100px;
+            border-radius: 50%;
+        }
+        .custom-file-input {
+            cursor: pointer;
+        }
+        .custom-file-label {
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="mt-5">Speak to AI</h1>
+        <!-- <button id="start-btn" class="btn btn-primary mt-3">Start Recording</button>
+        <button id="stop-btn" class="btn btn-secondary mt-3" disabled>Stop Recording</button> -->
+        <button id="call-btn" class="btn btn-success mt-3" style="width: 150px;">Call</button>
+        <p id="status"></p>
+        <div id="transcript" class="mt-4 p-3 text-white rounded" style="display: none;"></div>
+        <div id="gpt-response" class="mt-4 p-3 text-white rounded" style="display: none;"></div>
+      
+
+
+        <!-- Other elements like file upload can also go here if needed -->
+    </div>
+   
+    <script>
+       document.addEventListener('DOMContentLoaded', function() {
+        document.getElementById('call-btn').addEventListener('click', function() {
+    generateAudio("Hello, how may I assist you with your travel plans today?");
+    this.disabled = true; // Optional: disable the button after the first click
+});
+
+    var recognition = new webkitSpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    var isProcessing = false; // Flag to indicate if we're currently processing a request
+
+    recognition.onresult = function(event) {
+        if (isProcessing) {
+            console.log("Processing in progress. New results are being ignored.");
+            return; // Exit if we're already processing a request
+        }
+
+        var transcript = '';
+        for (var i = event.resultIndex; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) {
+                transcript += event.results[i][0].transcript;
+            }
+        }
+
+        if (transcript) {
+            console.log("Transcript received: ", transcript);
+            document.getElementById('transcript').innerText = transcript;
+            document.getElementById('transcript').style.display = 'block';
+            isProcessing = true; // Set the flag to true as we start processing
+            sendTranscriptToServer(transcript);
+        }
+    };
+
+    function sendTranscriptToServer(transcript) {
+    console.log("Sending transcript to server:", transcript);
+    fetch('/conversation', {
+        method: 'POST',
+        body: JSON.stringify({ transcript: transcript }),
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`Server responded with ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        var audioSrc = 'data:audio/mp3;base64,' + data.audio;
+        var audio = new Audio(audioSrc);
+        audio.play();
+        audio.onended = function() {
+            isProcessing = false;
+            recognition.start(); // Uncomment this line to automatically restart recognition
+        };
+    })
+    .catch(error => {
+        console.error('Error in conversation flow:', error);
+    });
+}
+
+
+    function generateAudio(prompt) {
+        console.log("Sending prompt for audio generation.");
+        fetch('/generate_audio', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ gpt_response: prompt }),
+        })
+        .then(response => {
+            if (response.ok) {
+                return response.json();
+            } else {
+                throw new Error('Server returned non-OK status');
+            }
+        })
+        .then(data => {
+            var audioSrc = 'data:audio/mp3;base64,' + data.audio;
+            var audio = new Audio(audioSrc);
+            audio.play();
+            audio.onended = function() {
+        // Here we reset the isProcessing flag
+        isProcessing = false;
+        // If you want to automatically restart recognition, uncomment the next line
+        recognition.start();
+        };
+        })
+        .catch(error => console.error('There was an error generating the audio!', error));
+    }
+
+    recognition.onstart = function() {
+        document.getElementById('status').innerText = 'Recording...';
+    };
+
+    recognition.onend = function() {
+        document.getElementById('status').innerText = '';
+    };
+
+    document.getElementById('start-btn').onclick = function() {
+        recognition.start();
+        document.getElementById('start-btn').disabled = true;
+        document.getElementById('stop-btn').disabled = false;
+    };
+
+    document.getElementById('stop-btn').onclick = function() {
+        recognition.stop();
+        document.getElementById('start-btn').disabled = false;
+        document.getElementById('stop-btn').disabled = true;
+    };
+});
+
+</script> 
+   
+    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
+</body>
+</html>
